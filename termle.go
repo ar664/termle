@@ -18,6 +18,7 @@ const (
 	blackSquare  = `⬛`
 	yellowSquare = `🟨`
 	greenSquare  = `🟩`
+	blankSquare  = `⬜`
 )
 
 var (
@@ -42,6 +43,7 @@ type game struct {
 	answer         string
 	validGuesses   map[string]struct{}
 	board          [][]cell
+	keyboard       []cell
 }
 
 type cell struct {
@@ -118,6 +120,9 @@ func white(l string) string {
 func black(l string) string {
 	return "\033[37;100m" + l + "\033[0m"
 }
+func blank(l string) string {
+	return "\033[48;5;0m" + l + "\033[0m"
+}
 func clearBoard() {
 	fmt.Print("\033c")
 }
@@ -136,6 +141,16 @@ func newGame(day int) *game {
 			}
 		}
 	}
+
+	//Create list of letters A-Z
+	kb := make([]cell, 26)
+	for i := range kb {
+		kb[i] = cell{
+			color:  blackSquare,
+			letter: string(rune(int('A') + i)),
+		}
+	}
+
 	return &game{
 		day:            day,
 		currentTurn:    0,
@@ -145,6 +160,7 @@ func newGame(day int) *game {
 		answer:         answerForDay(day),
 		validGuesses:   guessesSet(),
 		board:          b,
+		keyboard:       kb,
 	}
 }
 
@@ -160,18 +176,24 @@ func (g *game) addGuess(guess string) {
 		freq[r]++
 	}
 	for i, r := range guess {
+		kbPos := -(int('A') - int(r))
 		if rune(g.answer[i]) == r {
 			freq[r]--
 			g.board[g.currentTurn][i].color = greenSquare
+			g.keyboard[kbPos].color = greenSquare
 		}
 		g.board[g.currentTurn][i].letter = string(r)
 	}
 	for i, r := range guess {
+		kbPos := -(int('A') - int(r))
 		// not green, it exists somewhere, and there is room left to color
 		if rune(g.answer[i]) != r && strings.ContainsRune(g.answer, r) && freq[r] > 0 {
 			freq[r]--
 			g.board[g.currentTurn][i].color = yellowSquare
 			g.board[g.currentTurn][i].letter = string(r)
+			g.keyboard[kbPos].color = yellowSquare
+		} else if !strings.ContainsRune(g.answer, r) {
+			g.keyboard[kbPos].color = blankSquare
 		}
 	}
 	g.turnsRemaining--
@@ -201,6 +223,25 @@ func (g *game) print() {
 		}
 		fmt.Println()
 	}
+	for x := range g.keyboard {
+		l := g.keyboard[x].letter
+		switch g.keyboard[x].color {
+		case greenSquare:
+			l = green(l)
+		case yellowSquare:
+			l = yellow(l)
+		case blankSquare:
+			l = blank(l)
+		default:
+			l = black(l)
+		}
+		fmt.Print(" " + l)
+
+		if (x % 8) == 4 {
+			fmt.Println()
+		}
+	}
+	fmt.Println()
 }
 
 func (g *game) printTurn() {
